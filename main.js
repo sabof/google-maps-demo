@@ -154,42 +154,44 @@ Fence.prototype.moveMarker = function(marker, latLng) {
 
 function Square(map, latLng) {
   Shape.apply(this, arguments);
+  // FIXME: Use kilometers
+  this.radius = 0.01;
+
   this._addMarker(latLng);
 
-  var poly = new google.maps.Polygon({
+  this.rectange = new google.maps.Rectangle({
     strokeWeight: 3,
-    fillColor: '#5555FF'
+    fillColor: '#5555FF',
+    map: map.googleMap
   });
-  poly.setMap(map.googleMap);
-  this.path = new google.maps.MVCArray();
-  poly.setPaths(new google.maps.MVCArray([this.path]));
-  this.moveMarker(this.markers[0], latLng);
+
+  this._setBounds();
 }
 
 Square.prototype = new Shape();
 
-Square.prototype.moveMarker = function(marker, latLng) {
-  // debugger;
-  var lat = latLng.lat();
-  var lng = latLng.lng();
-  // FIXME: Convert from Kilometers
-  var radius = 0.01; // kinda
+Square.prototype._setBounds = function() {
+  var radius = this.radius;
+  var lat = this.markers[0].getPosition().lat();
+  var lng = this.markers[0].getPosition().lng();
 
-  // FIXME: There has to be a better API for this
-  this.path.setAt(
-    0, new google.maps.LatLng(lat - radius, lng - radius)
-  );
-  this.path.setAt(
-    1, new google.maps.LatLng(lat + radius, lng - radius)
-  );
-  this.path.setAt(
-    2, new google.maps.LatLng(lat + radius, lng + radius)
-  );
-  this.path.setAt(
-    3, new google.maps.LatLng(lat - radius, lng + radius)
+  this.rectange.setBounds(
+    new google.maps.LatLngBounds(
+      /* SW: */ new google.maps.LatLng(lat - radius, lng - radius),
+      /* NE: */ new google.maps.LatLng(lat + radius, lng + radius)
+    )
   );
 };
 
+Square.prototype.moveMarker = function(marker, latLng) {
+  // debugger;
+  this._setBounds();
+};
+
+Square.prototype.removeMarker = function(marker) {
+  Shape.prototype.removeMarker.call(this, marker);
+  this.rectange.setMap(null);
+};
 
 //------------------------------------------------------------------------------
 
