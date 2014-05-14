@@ -71,8 +71,6 @@ Shape.prototype = {
   map: null,
   markers: null,
 
-  // FIXME: Move to it's own class
-
   _addMarker: function(latLng) {
     var map = this.map;
 
@@ -82,6 +80,7 @@ Shape.prototype = {
       draggable: true
     });
 
+    // FIXME: Am I still usting these?
     marker._parentShape = this;
     marker._delete = function() {
     };
@@ -140,12 +139,9 @@ Shape.prototype = {
 
 function Fence(map, latLng)  {
   Shape.apply(this, arguments);
-  // FIXME: Prompt user
-
   this._addMarker(latLng);
 
   this.polyPath = new google.maps.MVCArray([latLng]);
-  // FIXME: pass clicks through
   this.poly = new google.maps.Polygon({
     strokeWeight: 3,
     fillColor: '#5555FF',
@@ -154,15 +150,14 @@ function Fence(map, latLng)  {
     clickable: false
   });
 
-  // this.rectange = new google.maps.Rectangle({
-  //   strokeWeight: 3,
-  //   fillColor: '#5555FF',
-  //   map: map.googleMap
-  // });
-
 }
 
 Fence.prototype = new Shape();
+
+Fence.prototype.delete = function(latLng) {
+  Shape.prototype.delete.apply(this, arguments);
+  this.poly.setMap(null);
+};
 
 Fence.prototype.addMarker = function(latLng) {
   var marker = this._addMarker(latLng);
@@ -181,21 +176,19 @@ Fence.prototype.removeMarker = function(marker) {
   if (index !== -1) {
     Shape.prototype.removeMarker.call(this, marker);
     this.polyPath.removeAt(index);
-
-    if (! this.markers.length)  {
-      this.poly.setMap(null);
-    }
   }
-
 };
-
 
 //------------------------------------------------------------------------------
 
 function Square(map, latLng) {
   Shape.apply(this, arguments);
   // FIXME: Use kilometers
-  this.radius = 0.01;
+
+  this.sideLength = Number(window.prompt(
+    'Side length in KM:'
+  )) * 1000;
+
   // FIXME: Prompt user
 
   this._addMarker(latLng);
@@ -207,32 +200,42 @@ function Square(map, latLng) {
     clickable: false
   });
 
-  this._setBounds();
+  this._drawBoundary();
 }
 
 Square.prototype = new Shape();
 
-Square.prototype._setBounds = function() {
-  var radius = this.radius;
-  var lat = this.markers[0].getPosition().lat();
-  var lng = this.markers[0].getPosition().lng();
+Square.prototype.delete = function(latLng) {
+  Shape.delete.apply(this, arguments);
+  this.rectange.setMap(null);
+};
+
+Square.prototype._drawBoundary = function() {
+  var radius = this.sideLength / 2;
+  var origin = this.markers[0].getPosition();
+
+  var boundaries = [0, 90, 180, 270].map(function(degrees) {
+    return google.maps.geometry.spherical.computeOffset(
+      origin, radius, degrees
+    );
+  });
 
   this.rectange.setBounds(
     new google.maps.LatLngBounds(
-      /* SW: */ new google.maps.LatLng(lat - radius, lng - radius),
-      /* NE: */ new google.maps.LatLng(lat + radius, lng + radius)
+      /* SW: */ new google.maps.LatLng(
+        boundaries[2].lat(),
+        boundaries[3].lng()
+      ),
+      /* NE: */ new google.maps.LatLng(
+        boundaries[0].lat(),
+        boundaries[1].lng()
+      )
     )
   );
 };
 
 Square.prototype.moveMarker = function(marker, latLng) {
-  // debugger;
-  this._setBounds();
-};
-
-Square.prototype.removeMarker = function(marker) {
-  Shape.prototype.removeMarker.call(this, marker);
-  this.rectange.setMap(null);
+  this._drawBoundary();
 };
 
 //------------------------------------------------------------------------------
@@ -274,47 +277,64 @@ function CreateFenceTool() {}
 
 CreateFenceTool.prototype = new Tool();
 
-CreateFenceTool.prototype.doContinue = false;
-
+// FIXME: Move to Fence
 CreateFenceTool.prototype._colorize = function(shape, isComplete) {
   var markers = shape.markers;
-  var pinColor = "FE7569";
+
+  var green ="8CFF9D",
+      red ="FE7569",
+      purple ="F2A3E6",
+      blue ="8CD0FF";
+
   var chartsURL = 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|';
 
-  markers.forEach(function(marker) {
-    marker.setIcon(chartsURL + pinColor);
-  });
-
-  if (markers.length && ! shape.isComplete) {
-    markers[0].setIcon(chartsURL + '009900');
-    markers[markers.length - 1].setIcon(chartsURL + '000099');
+  if (shape.isComplete) {
+    markers.forEach(function(marker) {
+      marker.setIcon(chartsURL + red);
+    });
+  } else {
+    markers.forEach(function(marker) {
+      marker.setIcon(chartsURL + blue);
+    });
+    if (markers.length && ! shape.isComplete) {
+      markers[0].setIcon(chartsURL + green);
+      markers[markers.length - 1].setIcon(chartsURL + purple);
+    }
   }
 };
 
 CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
-  if (shape === map.currentShape && shape.markers[0] === marker) {
-    this.doContinue = false;
-    shape.isComplete = true;
-  } else {
-    Tool.prototype.markerClick.apply(this, arguments);
-  }
+  if (shape === map.currentShape &&
+      shape.markers[0] === marker &&
+      shape.markers.length >= 3 &&
+      ! shape.isComplete
+     ) {
+       shape.isComplete = true;
+     } else {
+       Tool.prototype.markerClick.apply(this, arguments);
+
+       // Leaves boundaries
+
+       if (shape.isComplete &&
+           shape.markers.length < 3)
+       {
+
+         shape.delete();
+       }
+
+     }
   this._colorize(shape);
 };
 
 CreateFenceTool.prototype.mapClick = function(map, event) {
-  if (map.currentShape instanceof Fence && this.doContinue) {
+  if (map.currentShape instanceof Fence && ! map.currentShape.isComplete) {
     map.currentShape.addMarker(event.latLng);
   } else {
     var fence = new Fence(map, event.latLng);
     fence.isComplete = false;
     map.setCurrentShape(fence);
-    this.doContinue = true;
   }
   this._colorize(map.currentShape);
-};
-
-CreateFenceTool.prototype.enable = function(map) {
-  this.doContinue = true;
 };
 
 CreateFenceTool.prototype.disable = function(map) {
