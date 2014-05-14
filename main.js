@@ -26,7 +26,12 @@ MapModel.prototype = {
   shapes: null,
 
   setCurrentTool: function(toolName) {
+    if (this.currentTool) {
+      this.currentTool.disable();
+    }
+
     this.currentTool = this.tools[toolName];
+    this.currentTool.enable();
   },
 
   setCurrentShape: function(shape) {
@@ -49,10 +54,9 @@ MapModel.prototype = {
 
 //------------------------------------------------------------------------------
 
-function Shape(map) {
+function Shape(map, latLng) {
   this.markers = [];
 
-  // When called with no arguments, I'm assuming it's to create a prototype
   if (! arguments.length) {
     return;
   }
@@ -131,24 +135,55 @@ Shape.prototype = {
 
 //------------------------------------------------------------------------------
 
-function Fence(map, latLng) {
-  this.path = new google.maps.MVCArray();
+function Fence(map, latLng)  {
+  Shape.apply(this, arguments);
+  // FIXME: Prompt user
+
+  this._addMarker(latLng);
+
+  this.polyPath = new google.maps.MVCArray([latLng]);
+  this.poly = new google.maps.Polygon({
+    strokeWeight: 3,
+    fillColor: '#5555FF',
+    map: this.map.googleMap,
+    paths: this.polyPath
+  });
+
+  // this.rectange = new google.maps.Rectangle({
+  //   strokeWeight: 3,
+  //   fillColor: '#5555FF',
+  //   map: map.googleMap
+  // });
+
 }
+
 Fence.prototype = new Shape();
 
 Fence.prototype.addMarker = function(latLng) {
-  this.path.insertAt(this.path.length, latLng);
+  var marker = this._addMarker(latLng);
+  this.polyPath.push(latLng);
 };
 
 Fence.prototype.moveMarker = function(marker, latLng) {
-  var markers = this.markers;
-  for (
-    var i = 0, I = markers.length;
-    i < I && markers[i] != marker;
-    ++i
-  );
-  this.path.setAt(i, marker.getPosition());
+  var index = this.markers.indexOf(marker);
+  if (index !== -1) {
+    this.polyPath.setAt(index, marker.getPosition());
+  }
 };
+
+Fence.prototype.removeMarker = function(marker) {
+  var index = this.markers.indexOf(marker);
+  if (index !== -1) {
+    Shape.prototype.removeMarker.call(this, marker);
+    this.polyPath.removeAt(index);
+
+    if (! this.markers.length)  {
+      this.poly.setMap(null);
+    }
+  }
+
+};
+
 
 //------------------------------------------------------------------------------
 
@@ -156,6 +191,7 @@ function Square(map, latLng) {
   Shape.apply(this, arguments);
   // FIXME: Use kilometers
   this.radius = 0.01;
+  // FIXME: Prompt user
 
   this._addMarker(latLng);
 
@@ -219,9 +255,48 @@ function CreateSquareTool() {}
 
 CreateSquareTool.prototype = new Tool();
 CreateSquareTool.prototype.mapClick = function(map, event) {
-  var square = new Square(map, event.latLng);
+  map.setCurrentShape(
+    new Square(map, event.latLng)
+  );
+
   // this.map.addShape(square);
 };
+
+//------------------------------------------------------------------------------
+
+function CreateFenceTool() {}
+
+CreateFenceTool.prototype = new Tool();
+
+CreateFenceTool.prototype.doContinue = false;
+
+CreateFenceTool.prototype.markerClick = function(marker, shape, event) {
+  if (shape.markers[0] === marker) {
+    this.doContinue = false;
+  } else {
+    Tool.prototype.markerClick.apply(this, arguments);
+  }
+};
+
+CreateFenceTool.prototype.mapClick = function(map, event) {
+  if (map.currentShape instanceof Fence && this.doContinue) {
+    map.currentShape.addMarker(event.latLng);
+  } else {
+    map.setCurrentShape(
+      new Fence(map, event.latLng)
+    );
+    this.doContinue = true;
+  }
+};
+
+CreateFenceTool.prototype.disable = function() {
+  this.doContinue = false;
+};
+
+CreateFenceTool.prototype.enable = function() {
+  this.doContinue = true;
+};
+
 
 //------------------------------------------------------------------------------
 
@@ -244,10 +319,10 @@ CreateSquareTool.prototype.mapClick = function(map, event) {
 var map = new MapModel(
   document.getElementById('the-map'), {
     'delete': null,
-    'fence': null,
+    'fence': new CreateFenceTool(),
     'square': new CreateSquareTool(),
     'move': null
   }
 );
 
-map.setCurrentTool('square');
+map.setCurrentTool('fence');
