@@ -27,11 +27,11 @@ MapModel.prototype = {
 
   setCurrentTool: function(toolName) {
     if (this.currentTool) {
-      this.currentTool.disable();
+      this.currentTool.disable(this);
     }
 
     this.currentTool = this.tools[toolName];
-    this.currentTool.enable();
+    this.currentTool.enable(this);
   },
 
   setCurrentShape: function(shape) {
@@ -40,9 +40,12 @@ MapModel.prototype = {
 
   removeShape: function(shape) {
     var index = this.shapes.indexOf(shape);
+
     if (index !== -1) {
       this.shapes.splice(index, 1);
-      this.setCurrentShape(null);
+      if (shape === this.currentShape) {
+        this.setCurrentShape(null);
+      }
     }
   },
 
@@ -87,14 +90,14 @@ Shape.prototype = {
     google.maps.event.addListener(marker, 'click', function(event) {
       self.map.currentTool.markerClick.call(
         self.map.currentTool,
-        this, self, event
+        map, this, self, event
       );
     });
 
     google.maps.event.addListener(marker, 'dragend', function(event) {
       self.map.currentTool.markerDragEnd.call(
         self.map.currentTool,
-        this, self, event
+        map, this, self, event
       );
     });
 
@@ -142,11 +145,13 @@ function Fence(map, latLng)  {
   this._addMarker(latLng);
 
   this.polyPath = new google.maps.MVCArray([latLng]);
+  // FIXME: pass clicks through
   this.poly = new google.maps.Polygon({
     strokeWeight: 3,
     fillColor: '#5555FF',
     map: this.map.googleMap,
-    paths: this.polyPath
+    paths: this.polyPath,
+    clickable: false
   });
 
   // this.rectange = new google.maps.Rectangle({
@@ -198,7 +203,8 @@ function Square(map, latLng) {
   this.rectange = new google.maps.Rectangle({
     strokeWeight: 3,
     fillColor: '#5555FF',
-    map: map.googleMap
+    map: map.googleMap,
+    clickable: false
   });
 
   this._setBounds();
@@ -238,13 +244,13 @@ Tool.prototype = {
 
   disable: function(map) {},
 
-  markerDragEnd: function(marker, shape, event) {
+  markerDragEnd: function(map, marker, shape, event) {
     shape.moveMarker(marker, event.latLng);
   },
 
   mapClick: function(map, event) {},
 
-  markerClick: function(marker, shape, event) {
+  markerClick: function(map, marker, shape, event) {
     shape.removeMarker(marker);
   }
 };
@@ -270,31 +276,50 @@ CreateFenceTool.prototype = new Tool();
 
 CreateFenceTool.prototype.doContinue = false;
 
-CreateFenceTool.prototype.markerClick = function(marker, shape, event) {
-  if (shape.markers[0] === marker) {
+CreateFenceTool.prototype._colorize = function(shape, isComplete) {
+  var markers = shape.markers;
+  var pinColor = "FE7569";
+  var chartsURL = 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|';
+
+  markers.forEach(function(marker) {
+    marker.setIcon(chartsURL + pinColor);
+  });
+
+  if (markers.length && ! shape.isComplete) {
+    markers[0].setIcon(chartsURL + '009900');
+    markers[markers.length - 1].setIcon(chartsURL + '000099');
+  }
+};
+
+CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
+  if (shape === map.currentShape && shape.markers[0] === marker) {
     this.doContinue = false;
+    shape.isComplete = true;
   } else {
     Tool.prototype.markerClick.apply(this, arguments);
   }
+  this._colorize(shape);
 };
 
 CreateFenceTool.prototype.mapClick = function(map, event) {
   if (map.currentShape instanceof Fence && this.doContinue) {
     map.currentShape.addMarker(event.latLng);
   } else {
-    map.setCurrentShape(
-      new Fence(map, event.latLng)
-    );
+    var fence = new Fence(map, event.latLng);
+    fence.isComplete = false;
+    map.setCurrentShape(fence);
     this.doContinue = true;
   }
+  this._colorize(map.currentShape);
 };
 
-CreateFenceTool.prototype.disable = function() {
-  this.doContinue = false;
-};
-
-CreateFenceTool.prototype.enable = function() {
+CreateFenceTool.prototype.enable = function(map) {
   this.doContinue = true;
+};
+
+CreateFenceTool.prototype.disable = function(map) {
+  map.currentShape.isComplete = true;
+  this._colorize(map.currentShape);
 };
 
 
@@ -326,3 +351,4 @@ var map = new MapModel(
 );
 
 map.setCurrentTool('fence');
+// map.setCurrentTool('square');
