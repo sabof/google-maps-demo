@@ -52,8 +52,6 @@ var map = new MapModel(
   ]
 );
 
-// FIXME: refactor
-
 function toolbarBtnOnClick() {
   map.setCurrentTool(this.dataset.target);
   var old = document.querySelector('.active');

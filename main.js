@@ -140,9 +140,8 @@ Shape.prototype = {
 
   redrawBoundary: function() {},
 
-  // FIXME: Add correct signatures
   serialize: function() {},
-  deSerialize: function() {},
+  deSerialize: function(map, shapeSpec) {},
 
   createMarker: function(latLng) {
     var map = this.map;
