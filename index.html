@@ -10,9 +10,9 @@
     <div class="wrapper">
       <div id="the-map"></div>
       <section id="toolbar">
-        <button id="fence-btn">Fence</button>
-        <button id="square-btn">Square</button>
-        <button id="circle-btn">Circle</button>
+        <button id="fence-btn" data-target="fence">Fence</button>
+        <button id="square-btn" data-target="square">Square</button>
+        <button id="circle-btn" data-target="circle">Circle</button>
       </section>
 
       <section id="instructions">
@@ -56,19 +56,20 @@ var map = new MapModel(
   ]
 );
 
-document.getElementById('fence-btn').onclick = function() {
-  map.setCurrentTool('fence');
+// FIXME: refactor
+
+function toolbarBtnOnClick() {
+  map.setCurrentTool(this.dataset.target);
+  var old = document.querySelector('.active');
+  if (old) {
+    old.classList.remove('active')
+  }
+  this.classList.add('active');
 }
 
-document.getElementById('square-btn').onclick = function() {
-  map.setCurrentTool('square');
-}
-
-document.getElementById('circle-btn').onclick = function() {
-  map.setCurrentTool('circle');
-}
-
-document.getElementById('square-btn').onclick()
+document.getElementById('fence-btn').onclick = toolbarBtnOnClick;
+document.getElementById('square-btn').onclick = toolbarBtnOnClick;
+document.getElementById('circle-btn').onclick = toolbarBtnOnClick;
 
     </script>
   </body>

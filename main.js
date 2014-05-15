@@ -346,6 +346,37 @@ Fence.prototype.removeMarker = function(marker) {
   }
 };
 
+Fence.prototype.serialize = function() {
+  return {
+    shape: 'fence',
+    markers: this._serializeMarkers()
+  };
+};
+
+Fence.prototype.deSerialize = function(map, shapeSpec) {
+  if (shapeSpec.shape !== 'fence') {
+    return;
+  }
+  var fence = new Fence(
+    map,
+    new google.maps.LatLng(
+      shapeSpec.markers[0][0],
+      shapeSpec.markers[0][1]
+    )
+  );
+
+  shapeSpec.markers.slice(1).forEach(function(markerSpec) {
+    fence.addMarker(
+      new google.maps.LatLng(
+        markerSpec[0],
+        markerSpec[1]
+      )
+    );
+  });
+
+  map.setCurrentShape(fence);
+};
+
 Fence.prototype.reColor = function() {
   var markers = this.markers;
 
@@ -483,8 +514,8 @@ CreateFenceTool.prototype.disable = function(map) {
 // FIXED: Add instructions
 // FIXED: Change location
 // FIXED: Use same style for markers
+// FIXED: Improve CSS
 
-// FIXME: Style current button
+// FIXED: Style current button
 // FIXME: Add serialize/deSerialize
 // FIXME: Differentiate colors
-// FIXME: Improve CSS

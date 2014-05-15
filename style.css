@@ -29,3 +29,8 @@ body {
 	padding: 5px 0;
 	border-radius: 0 0 5px 5px;
 }
+
+#toolbar .active {
+	background: darkgray;
+	color: white;
+}
