@@ -162,19 +162,20 @@ Shape.prototype = {
   },
 };
 
+Shape.prototype._serializeMarkers = function() {
+  return this.markers.map(function(marker) {
+    var position = marker.getPosition();
+    return [
+      position.lat(),
+      position.lng()
+    ];
+  });
+};
+
 //------------------------------------------------------------------------------
 
 function Square(map, latLng) {
   Shape.apply(this, arguments);
-
-  this.sideLength = Number(window.prompt(
-    'Enter side length in KM:'
-  )) * 1000;
-
-  if (! this.sideLength) {
-    return;
-  }
-
   this.createMarker(latLng);
 
   this.rectange = new google.maps.Rectangle({
@@ -192,6 +193,11 @@ Square.prototype = new Shape();
 Square.prototype.delete = function(latLng) {
   Shape.prototype.delete.apply(this, arguments);
   this.rectange.setMap(null);
+};
+
+Square.prototype.setSideLength = function(length) {
+  this.sideLength = length;
+  this.redrawBoundary();
 };
 
 Square.prototype.redrawBoundary = function() {
@@ -218,30 +224,37 @@ Square.prototype.redrawBoundary = function() {
   );
 };
 
+Square.prototype.serialize = function() {
+  return {
+    shape: 'square',
+    markers: this._serializeMarkers(),
+    sideLength: this.sideLength
+  };
+};
+
 Square.prototype.deSerialize = function(map, shapeSpec) {
   if (shapeSpec.shape !== 'square') {
     return;
   }
-
+  var square = new Square(
+    map,
+    new google.maps.LatLng(
+      shapeSpec.markers[0][0],
+      shapeSpec.markers[0][1]
+    )
+  );
+  square.setSideLength(shapeSpec.sideLength);
+  map.setCurrentShape(square);
 };
+
 //------------------------------------------------------------------------------
 
 function Circle(map, latLng) {
   Shape.apply(this, arguments);
-
-  this.radius = Number(window.prompt(
-    'Enter radius length in KM:'
-  )) * 1000;
-
-  if (! this.radius) {
-    return;
-  }
-
   this.createMarker(latLng);
 
   this.circle = new google.maps.Circle({
     center: latLng,
-    radius: this.radius,
     strokeWeight: 3,
     fillColor: '#5555FF',
     map: map.googleMap,
@@ -256,8 +269,37 @@ Circle.prototype.delete = function(latLng) {
   this.circle.setMap(null);
 };
 
+Circle.prototype.setRadius = function(radius) {
+  this.radius = radius;
+  this.redrawBoundary();
+};
+
 Circle.prototype.redrawBoundary = function() {
+  this.circle.setRadius(this.radius);
   this.circle.setCenter(this.markers[0].getPosition());
+};
+
+Circle.prototype.serialize = function() {
+  return {
+    shape: 'circle',
+    markers: this._serializeMarkers(),
+    radius: this.radius
+  };
+};
+
+Circle.prototype.deSerialize = function(map, shapeSpec) {
+  if (shapeSpec.shape !== 'circle') {
+    return;
+  }
+  var circle = new Circle(
+    map,
+    new google.maps.LatLng(
+      shapeSpec.markers[0][0],
+      shapeSpec.markers[0][1]
+    )
+  );
+  circle.setRadius(shapeSpec.radius);
+  map.setCurrentShape(circle);
 };
 
 //------------------------------------------------------------------------------
@@ -304,6 +346,30 @@ Fence.prototype.removeMarker = function(marker) {
   }
 };
 
+Fence.prototype.reColor = function() {
+  var markers = this.markers;
+
+  var green = "8CFF9D",
+      red = "FE7569",
+      purple = "F2A3E6",
+      blue = "8CD0FF",
+      chartsURL = 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|';
+
+  if (this.isComplete) {
+    markers.forEach(function(marker) {
+      marker.setIcon(undefined);
+    });
+  } else {
+    markers.forEach(function(marker) {
+      marker.setIcon(chartsURL + blue);
+    });
+    if (markers.length && ! this.isComplete) {
+      markers[0].setIcon(chartsURL + green);
+      markers[markers.length - 1].setIcon(chartsURL + purple);
+    }
+  }
+};
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
@@ -332,9 +398,17 @@ function CreateSquareTool() {}
 CreateSquareTool.prototype = new Tool();
 
 CreateSquareTool.prototype.mapClick = function(map, event) {
-  map.setCurrentShape(
-    new Square(map, event.latLng)
-  );
+  var sideLength = Number(window.prompt(
+    'Enter side length in KM:'
+  )) * 1000;
+
+  if (! sideLength) {
+    return;
+  }
+
+  var square = new Square(map, event.latLng);
+  square.setSideLength(sideLength);
+  map.setCurrentShape(square);
 };
 
 //------------------------------------------------------------------------------
@@ -344,9 +418,16 @@ function CreateCircleTool() {}
 CreateCircleTool.prototype = new Tool();
 
 CreateCircleTool.prototype.mapClick = function(map, event) {
-  map.setCurrentShape(
-    new Circle(map, event.latLng)
-  );
+  var radius = Number(window.prompt(
+    'Enter radius in KM:'
+  )) * 1000;
+
+  if (! radius) {
+    return;
+  }
+  var circle = new Circle(map, event.latLng);
+  circle.setRadius(radius);
+  map.setCurrentShape(circle);
 };
 
 //------------------------------------------------------------------------------
@@ -354,32 +435,6 @@ CreateCircleTool.prototype.mapClick = function(map, event) {
 function CreateFenceTool() {}
 
 CreateFenceTool.prototype = new Tool();
-
-// FIXME: Move to Fence
-CreateFenceTool.prototype._colorize = function(shape, isComplete) {
-  var markers = shape.markers;
-
-  var green = "8CFF9D",
-      red = "FE7569",
-      purple = "F2A3E6",
-      blue = "8CD0FF";
-
-  var chartsURL = 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|';
-  if (shape.isComplete) {
-    markers.forEach(function(marker) {
-      // marker.setIcon(chartsURL + red);
-      marker.setIcon(undefined);
-    });
-  } else {
-    markers.forEach(function(marker) {
-      marker.setIcon(chartsURL + blue);
-    });
-    if (markers.length && ! shape.isComplete) {
-      markers[0].setIcon(chartsURL + green);
-      markers[markers.length - 1].setIcon(chartsURL + purple);
-    }
-  }
-};
 
 CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
   if (shape === map.currentShape &&
@@ -395,7 +450,10 @@ CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
       shape.delete();
     }
   }
-  this._colorize(shape);
+
+  if (shape instanceof Fence) {
+    shape.reColor();
+  }
 };
 
 CreateFenceTool.prototype.mapClick = function(map, event) {
@@ -406,22 +464,27 @@ CreateFenceTool.prototype.mapClick = function(map, event) {
     fence.isComplete = false;
     map.setCurrentShape(fence);
   }
-  this._colorize(map.currentShape);
+
+  if (map.currentShape instanceof Fence) {
+    map.currentShape.reColor();
+  }
 };
 
 CreateFenceTool.prototype.disable = function(map) {
   if (map.currentShape instanceof Fence) {
     map.currentShape.isComplete = true;
-    this._colorize(map.currentShape);
+    map.currentShape.reColor();
   }
 };
 
 //------------------------------------------------------------------------------
 
 // FIXED: Add circle
-// FIXME: Add instructions
+// FIXED: Add instructions
+// FIXED: Change location
+// FIXED: Use same style for markers
+
+// FIXME: Style current button
 // FIXME: Add serialize/deSerialize
-// FIXME: Change location
 // FIXME: Differentiate colors
 // FIXME: Improve CSS
-// FIXME: Use same style for markers

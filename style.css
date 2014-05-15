@@ -1,9 +1,31 @@
+html {
+	font-family: arial, sans-serif;
+	background: #eee;
+	color: #333;
+}
+
+body {
+	margin: 0;
+}
+
 #the-map {
-	width: 640px;
+	width: 100%;
 	height: 480px;
 	margin: 0 auto;
 }
 
 .wrapper {
 	text-align: center;
+	max-width: 800px;
+	margin: 0 auto;
+}
+
+#instructions {
+	text-align: left;
+}
+
+#toolbar {
+	background: white;
+	padding: 5px 0;
+	border-radius: 0 0 5px 5px;
 }
