@@ -33,6 +33,8 @@ MapModel.prototype = {
   serialize: function() {
     return this.shapes.map(function(shape) {
       return shape.serialize();
+    }).filter(function(it) {
+      return it;
     });
   },
 
@@ -82,7 +84,7 @@ MapModel.prototype = {
     this.saveTimer = setTimeout(
       function() {
         self.save();
-        console.log('saved');
+        console.log('Saved');
         self.saveTimer = null;
       },
       1000
@@ -375,10 +377,16 @@ Fence.prototype.removeMarker = function(marker) {
   if (index !== -1) {
     Shape.prototype.removeMarker.call(this, marker);
     this.polyPath.removeAt(index);
+    if (this.isComplete && this.markers.length < 3) {
+      this.delete();
+    }
   }
 };
 
 Fence.prototype.serialize = function() {
+  if (this.markers.length < 3) {
+    return;
+  }
   return {
     shape: 'fence',
     markers: this._serializeMarkers()
@@ -514,12 +522,7 @@ CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
     shape.isComplete = true;
   } else {
     Tool.prototype.markerClick.apply(this, arguments);
-
-    if (shape.isComplete && shape.markers.length < 3) {
-      shape.delete();
-    }
   }
-
   if (shape instanceof Fence) {
     shape.reColor();
   }
@@ -543,21 +546,12 @@ CreateFenceTool.prototype.mapClick = function(map, event) {
 
 CreateFenceTool.prototype.disable = function(map) {
   if (map.currentShape instanceof Fence) {
-    map.currentShape.isComplete = true;
-    map.currentShape.reColor();
+    if (map.currentShape.markers.length >= 3) {
+      map.currentShape.isComplete = true;
+      map.currentShape.reColor();
+    } else {
+      map.currentShape.delete();
+    }
   }
+  map.scheduleSave();
 };
-
-//------------------------------------------------------------------------------
-
-// FIXED: Add circle
-// FIXED: Add instructions
-// FIXED: Change location
-// FIXED: Use same style for markers
-// FIXED: Improve CSS
-// FIXED: Style current button
-// FIXED: Add serialize/deSerialize
-
-// FIXME: In which case [object]s occur
-// FIXME: Differentiate colors
-// FIXME: Use same style for markers
