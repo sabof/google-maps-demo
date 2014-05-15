@@ -37,7 +37,11 @@ MapModel.prototype = {
   deSerialize: function(shapeSpecs) {
     var self = this;
 
-    return shapeSpecs.map(function(shapeSpec) {
+    this.shapes.forEach(function(shape) {
+      shape.delete();
+    });
+
+    shapeSpecs.forEach(function(shapeSpec) {
       var result = null;
 
       self.shapeClasses.some(function(klass) {
@@ -50,11 +54,20 @@ MapModel.prototype = {
   },
 
   save: function() {
-
+    localStorage.googleMapDemoData = JSON.stringify(
+      this.serialize()
+    );
   },
 
   load: function() {
-
+    if (localStorage.googleMapDemoData) {
+      this.deSerialize(
+        JSON.parse(localStorage.googleMapDemoData)
+      );
+    }
+    localStorage.googleMapDemoData = (
+      this.serialize()
+    );
   },
 
   setCurrentTool: function(toolName) {
@@ -373,6 +386,8 @@ Fence.prototype.deSerialize = function(map, shapeSpec) {
       )
     );
   });
+
+  fence.isComplete = true;
 
   map.setCurrentShape(fence);
 };
