@@ -18,6 +18,14 @@ var MapModel = function(domElement, tools, shapeClasses) {
     self.currentTool.mapClick(self, event);
   });
 
+  google.maps.event.addListener(this.googleMap, 'zoom_changed', function(event) {
+    self.scheduleSave();
+  });
+
+  google.maps.event.addListener(this.googleMap, 'center_changed', function(event) {
+    self.scheduleSave();
+  });
+
   this.tools = tools;
   this.shapeClasses = shapeClasses;
   this.shapes = [];
@@ -31,21 +39,40 @@ MapModel.prototype = {
   saveTimer: null,
 
   serialize: function() {
-    return this.shapes.map(function(shape) {
-      return shape.serialize();
-    }).filter(function(it) {
-      return it;
-    });
+    var location = this.googleMap.getCenter();
+    return  {
+      zoom: this.googleMap.getZoom(),
+      center: [
+        location.lat(),
+        location.lng()
+      ],
+      shapes: this.shapes.map(function(shape) {
+        return shape.serialize();
+      }).filter(function(it) {
+        return it;
+      })
+    };
   },
 
-  deSerialize: function(shapeSpecs) {
+  deSerialize: function(mapSpec) {
     var self = this;
+    if (! (mapSpec.zoom && mapSpec.center && mapSpec.shapes)) {
+      return;
+    }
+
+    this.googleMap.setZoom(mapSpec.zoom);
+    this.googleMap.setCenter(
+      new google.maps.LatLng(
+        mapSpec.center[0],
+        mapSpec.center[1]
+      )
+    );
 
     this.shapes.forEach(function(shape) {
       shape.delete();
     });
 
-    shapeSpecs.forEach(function(shapeSpec) {
+    mapSpec.shapes.forEach(function(shapeSpec) {
       var result = null;
 
       self.shapeClasses.some(function(klass) {
