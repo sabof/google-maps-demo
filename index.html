@@ -23,6 +23,28 @@
 
     <script type="text/javascript">
 
+var map = new MapModel(
+  document.getElementById('the-map'), {
+    'fence': new CreateFenceTool(),
+    'square': new CreateSquareTool(),
+    'circle': new CreateCircleTool()
+  }
+);
+
+document.getElementById('fence-btn').onclick = function() {
+  map.setCurrentTool('fence');
+}
+
+document.getElementById('square-btn').onclick = function() {
+  map.setCurrentTool('square');
+}
+
+document.getElementById('circle-btn').onclick = function() {
+  map.setCurrentTool('circle');
+}
+
+map.setCurrentTool('square');
+
     </script>
   </body>
 </html>

@@ -56,6 +56,7 @@ MapModel.prototype = {
 };
 
 //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 function Shape(map, latLng) {
   this.markers = [];
@@ -71,7 +72,9 @@ Shape.prototype = {
   map: null,
   markers: null,
 
-  _addMarker: function(latLng) {
+  redrawBoundary: function() {},
+
+  createMarker: function(latLng) {
     var map = this.map;
 
     var marker = new google.maps.Marker({
@@ -79,11 +82,6 @@ Shape.prototype = {
       map: map.googleMap,
       draggable: true
     });
-
-    // FIXME: Am I still usting these?
-    marker._parentShape = this;
-    marker._delete = function() {
-    };
 
     var self = this;
     google.maps.event.addListener(marker, 'click', function(event) {
@@ -123,75 +121,21 @@ Shape.prototype = {
     }
   },
 
-  create: function() {
-    throw new Error("Not implemented");
+  moveMarker: function(marker, latLng) {
+    this.redrawBoundary();
   },
-
-  moveMarker: function(marker, latLng) {},
-
-  markerClickHandler: function(map, event) {
-    // this.map.currentTool(event);
-    // console.log(arguments);
-  }
-};
-
-//------------------------------------------------------------------------------
-
-function Fence(map, latLng)  {
-  Shape.apply(this, arguments);
-  this._addMarker(latLng);
-
-  this.polyPath = new google.maps.MVCArray([latLng]);
-  this.poly = new google.maps.Polygon({
-    strokeWeight: 3,
-    fillColor: '#5555FF',
-    map: this.map.googleMap,
-    paths: this.polyPath,
-    clickable: false
-  });
-
-}
-
-Fence.prototype = new Shape();
-
-Fence.prototype.delete = function(latLng) {
-  Shape.prototype.delete.apply(this, arguments);
-  this.poly.setMap(null);
-};
-
-Fence.prototype.addMarker = function(latLng) {
-  var marker = this._addMarker(latLng);
-  this.polyPath.push(latLng);
-};
-
-Fence.prototype.moveMarker = function(marker, latLng) {
-  var index = this.markers.indexOf(marker);
-  if (index !== -1) {
-    this.polyPath.setAt(index, marker.getPosition());
-  }
-};
-
-Fence.prototype.removeMarker = function(marker) {
-  var index = this.markers.indexOf(marker);
-  if (index !== -1) {
-    Shape.prototype.removeMarker.call(this, marker);
-    this.polyPath.removeAt(index);
-  }
 };
 
 //------------------------------------------------------------------------------
 
 function Square(map, latLng) {
   Shape.apply(this, arguments);
-  // FIXME: Use kilometers
 
   this.sideLength = Number(window.prompt(
-    'Side length in KM:'
+    'Enter side length in KM:'
   )) * 1000;
 
-  // FIXME: Prompt user
-
-  this._addMarker(latLng);
+  this.createMarker(latLng);
 
   this.rectange = new google.maps.Rectangle({
     strokeWeight: 3,
@@ -200,17 +144,17 @@ function Square(map, latLng) {
     clickable: false
   });
 
-  this._drawBoundary();
+  this.redrawBoundary();
 }
 
 Square.prototype = new Shape();
 
 Square.prototype.delete = function(latLng) {
-  Shape.delete.apply(this, arguments);
+  Shape.prototype.delete.apply(this, arguments);
   this.rectange.setMap(null);
 };
 
-Square.prototype._drawBoundary = function() {
+Square.prototype.redrawBoundary = function() {
   var radius = this.sideLength / 2;
   var origin = this.markers[0].getPosition();
 
@@ -234,10 +178,83 @@ Square.prototype._drawBoundary = function() {
   );
 };
 
-Square.prototype.moveMarker = function(marker, latLng) {
-  this._drawBoundary();
+//------------------------------------------------------------------------------
+
+function Circle(map, latLng) {
+  Shape.apply(this, arguments);
+
+  this.radius = Number(window.prompt(
+    'Enter radius length in KM:'
+  )) * 1000;
+
+  this.createMarker(latLng);
+
+  this.circle = new google.maps.Circle({
+    center: latLng,
+    radius: this.radius,
+    strokeWeight: 3,
+    fillColor: '#5555FF',
+    map: map.googleMap,
+    clickable: false
+  });
+}
+
+Circle.prototype = new Shape();
+
+Circle.prototype.delete = function(latLng) {
+  Shape.prototype.delete.apply(this, arguments);
+  this.circle.setMap(null);
 };
 
+Circle.prototype.redrawBoundary = function() {
+  this.circle.setCenter(this.markers[0].getPosition());
+};
+
+//------------------------------------------------------------------------------
+
+function Fence(map, latLng)  {
+  Shape.apply(this, arguments);
+  this.createMarker(latLng);
+
+  this.polyPath = new google.maps.MVCArray([latLng]);
+  this.poly = new google.maps.Polygon({
+    strokeWeight: 3,
+    fillColor: '#5555FF',
+    map: this.map.googleMap,
+    paths: this.polyPath,
+    clickable: false
+  });
+
+}
+
+Fence.prototype = new Shape();
+
+Fence.prototype.delete = function(latLng) {
+  Shape.prototype.delete.apply(this, arguments);
+  this.poly.setMap(null);
+};
+
+Fence.prototype.addMarker = function(latLng) {
+  var marker = this.createMarker(latLng);
+  this.polyPath.push(latLng);
+};
+
+Fence.prototype.moveMarker = function(marker, latLng) {
+  var index = this.markers.indexOf(marker);
+  if (index !== -1) {
+    this.polyPath.setAt(index, marker.getPosition());
+  }
+};
+
+Fence.prototype.removeMarker = function(marker) {
+  var index = this.markers.indexOf(marker);
+  if (index !== -1) {
+    Shape.prototype.removeMarker.call(this, marker);
+    this.polyPath.removeAt(index);
+  }
+};
+
+//------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
 function Tool() {}
@@ -263,12 +280,23 @@ Tool.prototype = {
 function CreateSquareTool() {}
 
 CreateSquareTool.prototype = new Tool();
+
 CreateSquareTool.prototype.mapClick = function(map, event) {
   map.setCurrentShape(
     new Square(map, event.latLng)
   );
+};
 
-  // this.map.addShape(square);
+//------------------------------------------------------------------------------
+
+function CreateCircleTool() {}
+
+CreateCircleTool.prototype = new Tool();
+
+CreateCircleTool.prototype.mapClick = function(map, event) {
+  map.setCurrentShape(
+    new Circle(map, event.latLng)
+  );
 };
 
 //------------------------------------------------------------------------------
@@ -342,33 +370,11 @@ CreateFenceTool.prototype.disable = function(map) {
   this._colorize(map.currentShape);
 };
 
-
 //------------------------------------------------------------------------------
 
-// function MapView(
-//   domElement,
-//   mapModel,
-//   tools
-// ) {
-
-// }
-
-// MapView.prototype = {
-//   setTool: function(toolName) {
-
-//   }
-// };
-
-//------------------------------------------------------------------------------
-
-var map = new MapModel(
-  document.getElementById('the-map'), {
-    'delete': null,
-    'fence': new CreateFenceTool(),
-    'square': new CreateSquareTool(),
-    'move': null
-  }
-);
-
-map.setCurrentTool('fence');
-// map.setCurrentTool('square');
+// FIXME: Add serialize/deserialize
+// FIXME: Add instructions
+// FIXME: Improve CSS
+// FIXME: Add circle
+// FIXME: Differentiate colors
+// FIXME: Use same style for markers
