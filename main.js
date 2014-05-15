@@ -21,12 +21,14 @@ var MapModel = function(domElement, tools, shapeClasses) {
   this.tools = tools;
   this.shapeClasses = shapeClasses;
   this.shapes = [];
+  this.load();
 };
 
 MapModel.prototype = {
   currentShape: null,
   currentTool: null,
   shapes: null,
+  saveTimer: null,
 
   serialize: function() {
     return this.shapes.map(function(shape) {
@@ -61,12 +63,29 @@ MapModel.prototype = {
 
   load: function() {
     if (localStorage.googleMapDemoData) {
-      this.deSerialize(
-        JSON.parse(localStorage.googleMapDemoData)
-      );
+      try {
+        this.deSerialize(
+          JSON.parse(localStorage.googleMapDemoData)
+        );
+      } catch (e) {
+        console.log('Load failed');
+      }
     }
-    localStorage.googleMapDemoData = (
-      this.serialize()
+  },
+
+  scheduleSave: function() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+    }
+
+    var self = this;
+    this.saveTimer = setTimeout(
+      function() {
+        self.save();
+        console.log('saved');
+        self.saveTimer = null;
+      },
+      1000
     );
   },
 
@@ -428,12 +447,14 @@ Tool.prototype = {
 
   markerDragEnd: function(map, marker, shape, event) {
     shape.moveMarker(marker, event.latLng);
+    map.scheduleSave();
   },
 
   mapClick: function(map, event) {},
 
   markerClick: function(map, marker, shape, event) {
     shape.removeMarker(marker);
+    map.scheduleSave();
   }
 };
 
@@ -455,6 +476,7 @@ CreateSquareTool.prototype.mapClick = function(map, event) {
   var square = new Square(map, event.latLng);
   square.setSideLength(sideLength);
   map.setCurrentShape(square);
+  map.scheduleSave();
 };
 
 //------------------------------------------------------------------------------
@@ -474,6 +496,7 @@ CreateCircleTool.prototype.mapClick = function(map, event) {
   var circle = new Circle(map, event.latLng);
   circle.setRadius(radius);
   map.setCurrentShape(circle);
+  map.scheduleSave();
 };
 
 //------------------------------------------------------------------------------
@@ -500,6 +523,7 @@ CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
   if (shape instanceof Fence) {
     shape.reColor();
   }
+  map.scheduleSave();
 };
 
 CreateFenceTool.prototype.mapClick = function(map, event) {
@@ -514,6 +538,7 @@ CreateFenceTool.prototype.mapClick = function(map, event) {
   if (map.currentShape instanceof Fence) {
     map.currentShape.reColor();
   }
+  map.scheduleSave();
 };
 
 CreateFenceTool.prototype.disable = function(map) {
@@ -530,7 +555,9 @@ CreateFenceTool.prototype.disable = function(map) {
 // FIXED: Change location
 // FIXED: Use same style for markers
 // FIXED: Improve CSS
-
 // FIXED: Style current button
-// FIXME: Add serialize/deSerialize
+// FIXED: Add serialize/deSerialize
+
+// FIXME: In which case [object]s occur
 // FIXME: Differentiate colors
+// FIXME: Use same style for markers
