@@ -1,22 +1,25 @@
 /*global google*/
 
-var MapModel = function(domElement, tools) {
+var MapModel = function(domElement, tools, shapeClasses) {
   var self = this;
   this.googleMap = new google.maps.Map(
     domElement, {
-      zoom: 14,
-      center: new google.maps.LatLng(-25.344, 131.036),
+      zoom: 13,
+      center: new google.maps.LatLng(
+        51.477124419087346,
+          -0.18946672821035904
+      ),
       mapTypeId: google.maps.MapTypeId.SATELLITE
     });
 
   this.googleMap.mapModel = this;
 
   google.maps.event.addListener(this.googleMap, 'click', function(event) {
-    // debugger;
     self.currentTool.mapClick(self, event);
   });
 
   this.tools = tools;
+  this.shapeClasses = shapeClasses;
   this.shapes = [];
 };
 
@@ -24,6 +27,35 @@ MapModel.prototype = {
   currentShape: null,
   currentTool: null,
   shapes: null,
+
+  serialize: function() {
+    return this.shapes.map(function(shape) {
+      return shape.serialize();
+    });
+  },
+
+  deSerialize: function(shapeSpecs) {
+    var self = this;
+
+    return shapeSpecs.map(function(shapeSpec) {
+      var result = null;
+
+      self.shapeClasses.some(function(klass) {
+        return (
+          result = klass.prototype.deSerialize(self, shapeSpec)
+        );
+      });
+      return result;
+    });
+  },
+
+  save: function() {
+
+  },
+
+  load: function() {
+
+  },
 
   setCurrentTool: function(toolName) {
     if (this.currentTool) {
@@ -73,6 +105,10 @@ Shape.prototype = {
   markers: null,
 
   redrawBoundary: function() {},
+
+  // FIXME: Add correct signatures
+  serialize: function() {},
+  deSerialize: function() {},
 
   createMarker: function(latLng) {
     var map = this.map;
@@ -135,6 +171,10 @@ function Square(map, latLng) {
     'Enter side length in KM:'
   )) * 1000;
 
+  if (! this.sideLength) {
+    return;
+  }
+
   this.createMarker(latLng);
 
   this.rectange = new google.maps.Rectangle({
@@ -178,6 +218,12 @@ Square.prototype.redrawBoundary = function() {
   );
 };
 
+Square.prototype.deSerialize = function(map, shapeSpec) {
+  if (shapeSpec.shape !== 'square') {
+    return;
+  }
+
+};
 //------------------------------------------------------------------------------
 
 function Circle(map, latLng) {
@@ -186,6 +232,10 @@ function Circle(map, latLng) {
   this.radius = Number(window.prompt(
     'Enter radius length in KM:'
   )) * 1000;
+
+  if (! this.radius) {
+    return;
+  }
 
   this.createMarker(latLng);
 
@@ -224,10 +274,10 @@ function Fence(map, latLng)  {
     paths: this.polyPath,
     clickable: false
   });
-
 }
 
 Fence.prototype = new Shape();
+Fence.prototype.isComplete = false;
 
 Fence.prototype.delete = function(latLng) {
   Shape.prototype.delete.apply(this, arguments);
@@ -309,16 +359,16 @@ CreateFenceTool.prototype = new Tool();
 CreateFenceTool.prototype._colorize = function(shape, isComplete) {
   var markers = shape.markers;
 
-  var green ="8CFF9D",
-      red ="FE7569",
-      purple ="F2A3E6",
-      blue ="8CD0FF";
+  var green = "8CFF9D",
+      red = "FE7569",
+      purple = "F2A3E6",
+      blue = "8CD0FF";
 
   var chartsURL = 'http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|';
-
   if (shape.isComplete) {
     markers.forEach(function(marker) {
-      marker.setIcon(chartsURL + red);
+      // marker.setIcon(chartsURL + red);
+      marker.setIcon(undefined);
     });
   } else {
     markers.forEach(function(marker) {
@@ -335,22 +385,16 @@ CreateFenceTool.prototype.markerClick = function(map, marker, shape, event) {
   if (shape === map.currentShape &&
       shape.markers[0] === marker &&
       shape.markers.length >= 3 &&
-      ! shape.isComplete
-     ) {
-       shape.isComplete = true;
-     } else {
-       Tool.prototype.markerClick.apply(this, arguments);
+      ! shape.isComplete)
+  {
+    shape.isComplete = true;
+  } else {
+    Tool.prototype.markerClick.apply(this, arguments);
 
-       // Leaves boundaries
-
-       if (shape.isComplete &&
-           shape.markers.length < 3)
-       {
-
-         shape.delete();
-       }
-
-     }
+    if (shape.isComplete && shape.markers.length < 3) {
+      shape.delete();
+    }
+  }
   this._colorize(shape);
 };
 
@@ -366,15 +410,18 @@ CreateFenceTool.prototype.mapClick = function(map, event) {
 };
 
 CreateFenceTool.prototype.disable = function(map) {
-  map.currentShape.isComplete = true;
-  this._colorize(map.currentShape);
+  if (map.currentShape instanceof Fence) {
+    map.currentShape.isComplete = true;
+    this._colorize(map.currentShape);
+  }
 };
 
 //------------------------------------------------------------------------------
 
-// FIXME: Add serialize/deserialize
+// FIXED: Add circle
 // FIXME: Add instructions
-// FIXME: Improve CSS
-// FIXME: Add circle
+// FIXME: Add serialize/deSerialize
+// FIXME: Change location
 // FIXME: Differentiate colors
+// FIXME: Improve CSS
 // FIXME: Use same style for markers

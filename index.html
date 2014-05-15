@@ -28,7 +28,11 @@ var map = new MapModel(
     'fence': new CreateFenceTool(),
     'square': new CreateSquareTool(),
     'circle': new CreateCircleTool()
-  }
+  }, [
+    Circle,
+    Square,
+    Fence
+  ]
 );
 
 document.getElementById('fence-btn').onclick = function() {
